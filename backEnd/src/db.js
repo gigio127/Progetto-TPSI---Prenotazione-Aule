@@ -1,11 +1,9 @@
-//creo sql
-const mysql = require("mysql2");
+import mysql from "mysql2";
 
-//collego il Db
 const db = mysql.createConnection({
   host: "localhost",
   user: "root",
-  password: "", // metti la tua se ce l'hai
+  password: "!Blondie16",
   database: "prenotami"
 });
 
@@ -17,4 +15,4 @@ db.connect((err) => {
   console.log("Connesso al database");
 });
 
-module.exports = db;
+export default db;
