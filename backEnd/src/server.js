@@ -1,9 +1,9 @@
-
 import express from "express";
 import cors from "cors";
-
-//connessione DB 
+import dotenv from "dotenv";
 import db from "./db.js";
+
+dotenv.config();
 
 const app = express();
 
@@ -16,5 +16,13 @@ app.get("/", (req, res) => {
 
 app.listen(3000, () => {
   console.log("Server avviato sulla porta 3000");
-  console.table(db.query("SELECT * FROM utenti"));
+
+  db.query("SELECT * FROM utenti", (err, results) => {
+    if (err) {
+      console.log("Errore durante la lettura degli utenti:", err);
+      return;
+    }
+    
+    console.table(results);
+  });
 });
