@@ -7,7 +7,9 @@ import {
   getPrenotazione,
   inserisciPrenotazione,
   cancPrenotazione,
-  modPrenotazione
+  modPrenotazione,
+  getUtenteByEmail,
+  getUtenteById
 } from "./db.js";
 
 const app = express();
