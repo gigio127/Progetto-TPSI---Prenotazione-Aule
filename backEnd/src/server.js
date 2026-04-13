@@ -9,7 +9,8 @@ import {
   cancPrenotazione,
   modPrenotazione,
   getUtenteByEmail,
-  getUtenteById
+  getUtenteById,
+  getRuoloUtente
 } from "./db.js";
 
 const app = express();
@@ -112,14 +113,42 @@ app.post("/insPrenotazione", async (req, res) => {
 
 app.delete("/cancPrenotazione/:id", async (req, res) => {
   try {
-    const id = req.params.id;
-    const risultato = await cancPrenotazione(id);
+    const idPren = req.params.id;
+    const idUtente = req.body.id_utente;
 
-    if (risultato && risultato.affectedRows > 0) {
-      res.status(200).json({ messaggio: "Prenotazione eliminata correttamente" });
-    } else {
-      res.status(404).json({ messaggio: "Prenotazione non trovata" });
+    const ruoloRes = await getRuoloUtente(idUtente);
+
+    if (!ruoloRes || ruoloRes.length === 0) {
+      return res.status(403).json({ messaggio: "Utente non valido" });
     }
+
+    const ruolo = ruoloRes[0].ruolo;
+
+    // ADMIN → può cancellare tutto
+    if (ruolo === "admin") {
+      const risultato = await cancPrenotazione(idPren);
+      return res.status(200).json({ messaggio: "Prenotazione eliminata" });
+    }
+
+    // DOCENTE / ATA → solo le proprie
+    if (ruolo === "docente" || ruolo === "ata") {
+      const pren = await getPrenotazione(idPren);
+
+      if (!pren || pren.length === 0) {
+        return res.status(404).json({ messaggio: "Prenotazione non trovata" });
+      }
+
+      if (pren[0].id_utente !== idUtente) {
+        return res.status(403).json({ messaggio: "Non puoi eliminare questa prenotazione" });
+      }
+
+      const risultato = await cancPrenotazione(idPren);
+      return res.status(200).json({ messaggio: "Prenotazione eliminata" });
+    }
+
+    // STUDENTE → non può eliminare
+    return res.status(403).json({ messaggio: "Permesso negato" });
+
   } catch (error) {
     res.status(400).json({ messaggio: "Errore eliminazione prenotazione" });
   }
@@ -127,29 +156,122 @@ app.delete("/cancPrenotazione/:id", async (req, res) => {
 
 app.put("/modPrenotazione/:id", async (req, res) => {
   try {
-    const id = req.params.id;
+    const idPren = req.params.id;
+    const idUtente = req.body.id_utente;
+
+    const ruoloRes = await getRuoloUtente(idUtente);
+
+    if (!ruoloRes || ruoloRes.length === 0) {
+      return res.status(403).json({ messaggio: "Utente non valido" });
+    }
+
+    const ruolo = ruoloRes[0].ruolo;
 
     const newPren = {
       data: req.body.data,
       ora_inizio: req.body.ora_inizio,
       ora_fine: req.body.ora_fine,
       id_utente: req.body.id_utente,
-      id_aula: req.body.id_aula
+      id_aula: req.body.id_aula,
+      motivazione: req.body.motivazione
     };
 
-    const risultato = await modPrenotazione(id, newPren);
-
-    if (risultato?.errore) {
-      return res.status(400).json(risultato);
+    if (!newPren.data || !newPren.ora_inizio || !newPren.ora_fine || !newPren.id_utente || !newPren.id_aula || !newPren.motivazione) {
+      return res.status(400).json({ messaggio: "Campi mancanti" });
     }
 
-    if (risultato && risultato.affectedRows > 0) {
-      res.status(200).json({ messaggio: "Prenotazione modificata correttamente" });
-    } else {
-      res.status(404).json({ messaggio: "Prenotazione non trovata" });
+    if (newPren.ora_inizio >= newPren.ora_fine) {
+      return res.status(400).json({ messaggio: "Orario non valido" });
     }
+
+    if (ruolo === "admin") {
+      const risultato = await modPrenotazione(idPren, newPren);
+
+      if (risultato?.errore) {
+        return res.status(400).json(risultato);
+      }
+
+      if (risultato && risultato.affectedRows > 0) {
+        return res.status(200).json({ messaggio: "Prenotazione modificata correttamente" });
+      }
+
+      return res.status(404).json({ messaggio: "Prenotazione non trovata" });
+    }
+
+    if (ruolo === "docente" || ruolo === "ata") {
+      const pren = await getPrenotazione(idPren);
+
+      if (!pren || pren.length === 0) {
+        return res.status(404).json({ messaggio: "Prenotazione non trovata" });
+      }
+
+      if (pren[0].id_utente !== Number(idUtente)) {
+        return res.status(403).json({ messaggio: "Non puoi modificare questa prenotazione" });
+      }
+
+      const risultato = await modPrenotazione(idPren, newPren);
+
+      if (risultato?.errore) {
+        return res.status(400).json(risultato);
+      }
+
+      if (risultato && risultato.affectedRows > 0) {
+        return res.status(200).json({ messaggio: "Prenotazione modificata correttamente" });
+      }
+
+      return res.status(404).json({ messaggio: "Prenotazione non trovata" });
+    }
+
+    return res.status(403).json({ messaggio: "Permesso negato" });
+
   } catch (error) {
     res.status(400).json({ messaggio: "Errore modifica prenotazione" });
+  }
+});
+
+app.post("/auth/google", async (req, res) => {
+  try {
+    const email = req.body.email;
+
+    if (!email) {
+      return res.status(400).json({ messaggio: "Email mancante" });
+    }
+
+    const risultato = await getUtenteByEmail(email);
+
+    if (!risultato) {
+      return res.status(500).json({ messaggio: "Errore database" });
+    }
+
+    if (risultato.length === 0) {
+      return res.status(401).json({ messaggio: "Utente non autorizzato" });
+    }
+
+    res.status(200).json({
+      messaggio: "Accesso consentito",
+      utente: risultato[0]
+    });
+  } catch (error) {
+    res.status(500).json({ messaggio: "Errore autenticazione" });
+  }
+});
+
+app.get("/utenti/me/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const risultato = await getUtenteById(id);
+
+    if (!risultato) {
+      return res.status(500).json({ messaggio: "Errore database" });
+    }
+
+    if (risultato.length === 0) {
+      return res.status(404).json({ messaggio: "Utente non trovato" });
+    }
+
+    res.status(200).json(risultato[0]);
+  } catch (error) {
+    res.status(500).json({ messaggio: "Errore lettura utente" });
   }
 });
 

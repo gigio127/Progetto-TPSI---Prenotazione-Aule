@@ -182,4 +182,15 @@ export async function getUtenteById(id_utente) {
     console.log(error.message);
     return null;
   }
+} 
+
+export async function getRuoloUtente(id_utente) {
+  try {
+    const sql = "SELECT ruolo FROM utenti WHERE id_utente = ?";
+    const [risultato] = await pool.query(sql, [id_utente]);
+    return risultato;
+  } catch (error) {
+    console.log(error.message);
+    return null;
+  }
 }
