@@ -70,24 +70,41 @@ app.post("/insPrenotazione", async (req, res) => {
     const newOraFine = req.body.ora_fine;
     const newIdUtente = req.body.id_utente;
     const newIdAula = req.body.id_aula;
+    const newMotivazione = req.body.motivazione;
+
+    if (!newData || !newOraInizio || !newOraFine || !newIdUtente || !newIdAula || !newMotivazione) {
+      return res.status(400).json({ messaggio: "Campi mancanti" });
+    }
+
+    if (newOraInizio >= newOraFine) {
+      return res.status(400).json({ messaggio: "Orario non valido" });
+    }
 
     const newPren = {
       data: newData,
       ora_inizio: newOraInizio,
       ora_fine: newOraFine,
       id_utente: newIdUtente,
-      id_aula: newIdAula
+      id_aula: newIdAula,
+      motivazione: newMotivazione
     };
 
     const risultato = await inserisciPrenotazione(newPren);
 
-    if (risultato?.errore) {
+    if (!risultato) {
+      return res.status(500).json({ messaggio: "Errore inserimento prenotazione" });
+    }
+
+    if (risultato.errore) {
       return res.status(400).json(risultato);
     }
 
-    res.status(200).json(risultato);
+    res.status(200).json({
+      messaggio: "Prenotazione inserita correttamente",
+      risultato: risultato
+    });
   } catch (error) {
-    res.status(400).json({ messaggio: "errore inserimento prenotazione" });
+    res.status(400).json({ messaggio: "Errore inserimento prenotazione" });
   }
 });
 

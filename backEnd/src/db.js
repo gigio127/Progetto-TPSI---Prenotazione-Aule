@@ -42,10 +42,12 @@ export async function getPrenotazioni() {
         p.ora_fine,
         u.nome,
         u.cognome,
+        u.email,
         a.codice AS aula
       FROM prenotazioni p
       INNER JOIN utenti u ON p.id_utente = u.id_utente
       INNER JOIN aule a ON p.id_aula = a.id_aula
+      ORDER BY p.data, p.ora_inizio
     `;
     const [risultato] = await pool.query(sql);
     return risultato;
@@ -86,8 +88,8 @@ export async function inserisciPrenotazione(newPren) {
     }
 
     const sqlInsert = `
-      INSERT INTO prenotazioni (data, ora_inizio, ora_fine, id_utente, id_aula)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO prenotazioni (data, ora_inizio, ora_fine, id_utente, id_aula, motivazione)
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
 
     const [risultato] = await pool.query(sqlInsert, [
@@ -95,12 +97,14 @@ export async function inserisciPrenotazione(newPren) {
       newPren.ora_inizio,
       newPren.ora_fine,
       newPren.id_utente,
-      newPren.id_aula
+      newPren.id_aula,
+      newPren.motivazione
     ]);
 
     return risultato;
   } catch (error) {
     console.log(error.message);
+    return null;
   }
 }
 
@@ -155,5 +159,27 @@ export async function modPrenotazione(id_prenotazione, newPren) {
     return risultato;
   } catch (error) {
     console.log(error.message);
+  }
+}
+
+export async function getUtenteByEmail(email) {
+  try {
+    const sql = "SELECT * FROM utenti WHERE email = ?";
+    const [risultato] = await pool.query(sql, [email]);
+    return risultato;
+  } catch (error) {
+    console.log(error.message);
+    return null;
+  }
+}
+
+export async function getUtenteById(id_utente) {
+  try {
+    const sql = "SELECT * FROM utenti WHERE id_utente = ?";
+    const [risultato] = await pool.query(sql, [id_utente]);
+    return risultato;
+  } catch (error) {
+    console.log(error.message);
+    return null;
   }
 }
