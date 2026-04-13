@@ -14,15 +14,16 @@ app.get("/", (req, res) => {
   res.send("Server attivo");
 });
 
-app.listen(3000, () => {
-  console.log("Server avviato sulla porta 3000");
+app.get("/utenti", async (req, res) => {
+  try {
+    const [results] = await db.query("SELECT * FROM utenti");
+    res.json(results);
+  } catch (err) {
+    console.log("Errore durante la lettura degli utenti:", err);
+    res.status(500).json({ errore: "Errore database" });
+  }
+});
 
-  db.query("SELECT * FROM utenti", (err, results) => {
-    if (err) {
-      console.log("Errore durante la lettura degli utenti:", err);
-      return;
-    }
-    
-    console.table(results);
-  });
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Server avviato sulla porta " + (process.env.PORT || 3000));
 });
