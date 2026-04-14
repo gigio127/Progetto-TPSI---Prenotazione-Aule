@@ -5,6 +5,7 @@ export const MOCK_USERS = [
   { id: 3, email: 'attilio.delpico@ittterni.org',            nome: 'Attilio',    cognome: 'Del Pico',  ruolo: 'admin'    },
   { id: 4, email: 'emanuele.smarrazzo@ittterni.org',       nome: 'Emanuele',     cognome: 'Smarrazzo',   ruolo: 'studente' },
   { id: 5, email: 'enrico.tecnico@ittterni.org',              nome: 'Enrico',    cognome: 'Tecnico',    ruolo: 'ata'      },
+  {id: 6, email: 'giorgioalessandro.galeanolourido@ittterni.org',      nome: 'Giorgio',        cognome:'Galeano',    ruolo: 'studente'}
 ];
 
 export const MOCK_AULE = [

@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react'
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google'
+import { jwtDecode } from 'jwt-decode'
 import {
   MOCK_USERS, MOCK_AULE, MOCK_CLASSI, INITIAL_BOOKINGS,
   getAula, getUser, getClasse, labelRole,
@@ -6,26 +8,42 @@ import {
   checkOverlap, canModify, canDelete
 } from './data.js'
 
+const GOOGLE_CLIENT_ID = '452696044138-qjucuslqfrnbov7ut4v9fa0tkovpvems.apps.googleusercontent.com';
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
 
-  if (!currentUser) {
-    return <LoginScreen onLogin={setCurrentUser} />;
-  }
-  return <AppShell currentUser={currentUser} onLogout={() => setCurrentUser(null)} />;
+  return (
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      {!currentUser
+        ? <LoginScreen onLogin={setCurrentUser} />
+        : <AppShell currentUser={currentUser} onLogout={() => setCurrentUser(null)} />
+      }
+    </GoogleOAuthProvider>
+  );
 }
 
 function LoginScreen({ onLogin }) {
-  const handleGoogleLogin = () => {
-    const emails = MOCK_USERS.map(u => u.email).join('\n');
-    const email  = window.prompt('Inserisci la tua email (demo):\n\n' + emails, 'massimiliano.iommi@ittterni.org');
-    if (!email) return;
-    const user = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
-    if (!user) {
-      window.alert('Accesso negato: email non presente nel sistema.\n(401 Unauthorized)');
-      return;
+  const [error, setError] = useState('');
+
+  const handleSuccess = (credentialResponse) => {
+    setError('');
+    try {
+      const decoded = jwtDecode(credentialResponse.credential);
+      const email   = decoded.email;
+      const user    = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (!user) {
+        setError(`Accesso negato: l'account ${email} non è registrato nel sistema. (401 Unauthorized)`);
+        return;
+      }
+      onLogin(user);
+    } catch {
+      setError('Errore durante il login. Riprova.');
     }
-    onLogin(user);
+  };
+
+  const handleError = () => {
+    setError('Login con Google fallito. Riprova.');
   };
 
   return (
@@ -34,10 +52,24 @@ function LoginScreen({ onLogin }) {
         <div className="login-logo">P</div>
         <h1>Prenotami</h1>
         <p>Piattaforma di prenotazione aule scolastiche.<br />Accedi con il tuo account scuola.</p>
-        <button className="btn-google" onClick={handleGoogleLogin}>
-          <div className="google-icon" />
-          Continua con Google
-        </button>
+
+        {error && (
+          <div className="alert alert-error" style={{ marginBottom: '16px', textAlign: 'left' }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <GoogleLogin
+            onSuccess={handleSuccess}
+            onError={handleError}
+            text="continue_with"
+            shape="rectangular"
+            logo_alignment="left"
+            locale="it"
+          />
+        </div>
+
         <p className="login-note">L'accesso è consentito solo agli utenti già registrati nel sistema.</p>
       </div>
     </div>
@@ -50,10 +82,12 @@ function AppShell({ currentUser, onLogout }) {
   const [bookings, setBookings] = useState(INITIAL_BOOKINGS);
   const [nextId,   setNextId]   = useState(6);
 
-  const addBooking    = useCallback(b => {
-    setBookings(prev => [...prev, { ...b, id: nextId }]);
-    setNextId(n => n + 1);
-  }, [nextId]);
+  const addBooking = useCallback(b => {
+    setNextId(n => {
+      setBookings(prev => [...prev, { ...b, id: n }]);
+      return n + 1;
+    });
+  }, []);
 
   const updateBooking = useCallback((id, data) => {
     setBookings(prev => prev.map(b => b.id === id ? { ...b, ...data } : b));
@@ -128,7 +162,7 @@ function DashboardPage({ currentUser, bookings, onAdd, onUpdate, onDelete }) {
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return [...bookings]
-      .filter(b => !filterAula   || b.id_aula == filterAula)
+      .filter(b => !filterAula   || Number(b.id_aula) === Number(filterAula))
       .filter(b => !filterClasse || b.classi.includes(Number(filterClasse)))
       .filter(b => {
         if (!q) return true;
@@ -263,10 +297,16 @@ function DashboardPage({ currentUser, bookings, onAdd, onUpdate, onDelete }) {
 
 function ProfilePage({ currentUser, bookings }) {
   const todayStr   = fmtDate(new Date());
-  const myBookings = bookings.filter(b => b.id_utente === currentUser.id);
-  const upcoming   = myBookings
-    .filter(b => b.data >= todayStr)
-    .sort((a, b) => (a.data + a.ora_inizio).localeCompare(b.data + b.ora_inizio));
+  const myBookings = useMemo(() =>
+    bookings.filter(b => b.id_utente === currentUser.id),
+    [bookings, currentUser.id]
+  );
+  const upcoming = useMemo(() =>
+    myBookings
+      .filter(b => b.data >= todayStr)
+      .sort((a, b) => (a.data + a.ora_inizio).localeCompare(b.data + b.ora_inizio)),
+    [myBookings, todayStr]
+  );
 
   const initials = currentUser.nome[0] + currentUser.cognome[0];
 
@@ -387,11 +427,11 @@ function BookingModal({ bookings, editing, currentUser, onSave, onClose }) {
   const handleSubmit = () => {
     setErrorMsg('');
 
-    if (!idAula)               return setErrorMsg("Seleziona un'aula.");
-    if (!data)                 return setErrorMsg('Inserisci una data.');
+    if (!idAula)                return setErrorMsg("Seleziona un'aula.");
+    if (!data)                  return setErrorMsg('Inserisci una data.');
     if (!oraInizio || !oraFine) return setErrorMsg("Inserisci orario di inizio e fine.");
-    if (oraInizio >= oraFine)  return setErrorMsg("L'orario di fine deve essere successivo all'inizio.");
-    if (!motivo.trim())        return setErrorMsg('Inserisci un motivo per la prenotazione.');
+    if (oraInizio >= oraFine)   return setErrorMsg("L'orario di fine deve essere successivo all'inizio.");
+    if (!motivo.trim())         return setErrorMsg('Inserisci un motivo per la prenotazione.');
 
     const conflict = checkOverlap(bookings, {
       id_aula:    Number(idAula),
