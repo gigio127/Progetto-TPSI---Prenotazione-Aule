@@ -103,9 +103,9 @@ export async function inserisciPrenotazione(newPren) {
 
     return risultato;
   } catch (error) {
-    console.log(error.message);
-    return null;
-  }
+  console.error("Errore DB inserisciPrenotazione:", error);
+  return null;
+}
 }
 
 export async function cancPrenotazione(id_prenotazione) {
@@ -143,7 +143,7 @@ export async function modPrenotazione(id_prenotazione, newPren) {
 
     const sqlUpdate = `
       UPDATE prenotazioni
-      SET data = ?, ora_inizio = ?, ora_fine = ?, id_utente = ?, id_aula = ?
+      SET data = ?, ora_inizio = ?, ora_fine = ?, id_utente = ?, id_aula = ?, motivazione = ?
       WHERE id_prenotazione = ?
     `;
 
@@ -153,6 +153,7 @@ export async function modPrenotazione(id_prenotazione, newPren) {
       newPren.ora_fine,
       newPren.id_utente,
       newPren.id_aula,
+      newPren.motivazione,
       id_prenotazione
     ]);
 
@@ -189,6 +190,17 @@ export async function getRuoloUtente(id_utente) {
     const sql = "SELECT ruolo FROM utenti WHERE id_utente = ?";
     const [risultato] = await pool.query(sql, [id_utente]);
     return risultato;
+  } catch (error) {
+    console.log(error.message);
+    return null;
+  }
+}
+
+export async function creaUtenteGoogle(nome, email) {
+  try {
+    const sql = "INSERT INTO utenti (nome, email) VALUES (?, ?)";
+    const [result] = await pool.query(sql, [nome, email]);
+    return result;
   } catch (error) {
     console.log(error.message);
     return null;
