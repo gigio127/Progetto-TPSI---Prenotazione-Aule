@@ -119,12 +119,9 @@ function AppShell({ currentUser, onLogout }) {
   caricaPrenotazioni();
 }, []);
 
-  const addBooking = useCallback(b => {
-    setNextId(n => {
-      setBookings(prev => [...prev, { ...b, id: n }]);
-      return n + 1;
-    });
-  }, []);
+const addBooking = useCallback((b) => {
+  setBookings(prev => [...prev, b]);
+}, []);
 
   const updateBooking = useCallback((id, data) => {
     setBookings(prev => prev.map(b => b.id === id ? { ...b, ...data } : b));
