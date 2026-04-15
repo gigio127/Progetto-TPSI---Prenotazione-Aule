@@ -16,7 +16,8 @@ export async function getAule() {
     const [risultato] = await pool.query(sql);
     return risultato;
   } catch (error) {
-    console.log(error.message);
+    console.log("Errore getAule:", error.message);
+    return null;
   }
 }
 
@@ -27,7 +28,41 @@ export async function getUtenti() {
     const [risultato] = await pool.query(sql);
     return risultato;
   } catch (error) {
-    console.log(error.message);
+    console.log("Errore getUtenti:", error.message);
+    return null;
+  }
+}
+
+export async function getUtenteById(id_utente) {
+  try {
+    const sql = "SELECT * FROM utenti WHERE id_utente = ?";
+    const [risultato] = await pool.query(sql, [id_utente]);
+    return risultato;
+  } catch (error) {
+    console.log("Errore getUtenteById:", error.message);
+    return null;
+  }
+}
+
+export async function getUtenteByEmail(email) {
+  try {
+    const sql = "SELECT * FROM utenti WHERE email = ?";
+    const [risultato] = await pool.query(sql, [email]);
+    return risultato;
+  } catch (error) {
+    console.log("Errore getUtenteByEmail:", error.message);
+    return null;
+  }
+}
+
+export async function getRuoloUtente(id_utente) {
+  try {
+    const sql = "SELECT ruolo FROM utenti WHERE id_utente = ?";
+    const [risultato] = await pool.query(sql, [id_utente]);
+    return risultato;
+  } catch (error) {
+    console.log("Errore getRuoloUtente:", error.message);
+    return null;
   }
 }
 
@@ -35,24 +70,22 @@ export async function getUtenti() {
 export async function getPrenotazioni() {
   try {
     const sql = `
-      SELECT 
+      SELECT
         p.id_prenotazione,
         p.data,
         p.ora_inizio,
         p.ora_fine,
-        u.nome,
-        u.cognome,
-        u.email,
-        a.codice AS aula
+        p.motivazione,
+        p.id_utente,
+        p.id_aula
       FROM prenotazioni p
-      INNER JOIN utenti u ON p.id_utente = u.id_utente
-      INNER JOIN aule a ON p.id_aula = a.id_aula
       ORDER BY p.data, p.ora_inizio
     `;
     const [risultato] = await pool.query(sql);
     return risultato;
   } catch (error) {
-    console.log(error.message);
+    console.log("Errore getPrenotazioni:", error.message);
+    return null;
   }
 }
 
@@ -62,7 +95,8 @@ export async function getPrenotazione(id_prenotazione) {
     const [risultato] = await pool.query(sql, [id_prenotazione]);
     return risultato;
   } catch (error) {
-    console.log(error.message);
+    console.log("Errore getPrenotazione:", error.message);
+    return null;
   }
 }
 
@@ -103,18 +137,8 @@ export async function inserisciPrenotazione(newPren) {
 
     return risultato;
   } catch (error) {
-  console.error("Errore DB inserisciPrenotazione:", error);
-  return null;
-}
-}
-
-export async function cancPrenotazione(id_prenotazione) {
-  try {
-    const sql = "DELETE FROM prenotazioni WHERE id_prenotazione = ?";
-    const [risultato] = await pool.query(sql, [id_prenotazione]);
-    return risultato;
-  } catch (error) {
-    console.log(error.message);
+    console.log("Errore inserisciPrenotazione:", error.message);
+    return null;
   }
 }
 
@@ -159,50 +183,18 @@ export async function modPrenotazione(id_prenotazione, newPren) {
 
     return risultato;
   } catch (error) {
-    console.log(error.message);
-  }
-}
-
-export async function getUtenteByEmail(email) {
-  try {
-    const sql = "SELECT * FROM utenti WHERE email = ?";
-    const [risultato] = await pool.query(sql, [email]);
-    return risultato;
-  } catch (error) {
-    console.log(error.message);
+    console.log("Errore modPrenotazione:", error.message);
     return null;
   }
 }
 
-export async function getUtenteById(id_utente) {
+export async function cancPrenotazione(id_prenotazione) {
   try {
-    const sql = "SELECT * FROM utenti WHERE id_utente = ?";
-    const [risultato] = await pool.query(sql, [id_utente]);
+    const sql = "DELETE FROM prenotazioni WHERE id_prenotazione = ?";
+    const [risultato] = await pool.query(sql, [id_prenotazione]);
     return risultato;
   } catch (error) {
-    console.log(error.message);
-    return null;
-  }
-} 
-
-export async function getRuoloUtente(id_utente) {
-  try {
-    const sql = "SELECT ruolo FROM utenti WHERE id_utente = ?";
-    const [risultato] = await pool.query(sql, [id_utente]);
-    return risultato;
-  } catch (error) {
-    console.log(error.message);
-    return null;
-  }
-}
-
-export async function creaUtenteGoogle(nome, email) {
-  try {
-    const sql = "INSERT INTO utenti (nome, email) VALUES (?, ?)";
-    const [result] = await pool.query(sql, [nome, email]);
-    return result;
-  } catch (error) {
-    console.log(error.message);
+    console.log("Errore cancPrenotazione:", error.message);
     return null;
   }
 }
