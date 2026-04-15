@@ -6,8 +6,8 @@ export const MOCK_USERS = [
   { id: 4, email: 'emanuele.smarrazzo@ittterni.org',       nome: 'Emanuele',     cognome: 'Smarrazzo',   ruolo: 'studente' },
   { id: 5, email: 'enrico.tecnico@ittterni.org',              nome: 'Enrico',    cognome: 'Tecnico',    ruolo: 'ata'      },
   {id: 6, email: 'giorgioalessandro.galeanolourido@ittterni.org',      nome: 'Giorgio',        cognome:'Galeano',    ruolo: 'studente'},
-  {id: 7, email: 'giacomo.bucciarelli@ittterni.org',      nome: 'Giacomo',        cognome:'Bucciarelli',    ruolo: 'studente'}
-  
+  {id: 7, email: 'giacomo.bucciarelli@ittterni.org',      nome: 'Giacomo',        cognome:'Bucciarelli',    ruolo: 'studente'},
+  {id: 8, email: 'frasca0b@gmail.com',      nome: 'Giacomo',        cognome:'Bucciarelli',    ruolo: 'studente'},
 ];
 
 export const MOCK_AULE = [
@@ -73,14 +73,27 @@ export function checkOverlap(bookings, { id_aula, data, ora_inizio, ora_fine, ex
 
 
 export function canModify(booking, currentUser) {
-  if (!currentUser) return false;
-  if (currentUser.ruolo === 'admin')    return true;
-  if (currentUser.ruolo === 'studente') return false;
-  return booking.id_utente === currentUser.id;
+  if (!booking || !currentUser) return false;
+
+  if (currentUser.ruolo === "admin") return true;
+
+  if (currentUser.ruolo === "docente" || currentUser.ruolo === "ata") {
+    return Number(booking.id_utente) === Number(currentUser.id_utente);
+  }
+
+  return false;
 }
 
 export function canDelete(booking, currentUser) {
-  return canModify(booking, currentUser);
+  if (!booking || !currentUser) return false;
+
+  if (currentUser.ruolo === "admin") return true;
+
+  if (currentUser.ruolo === "docente" || currentUser.ruolo === "ata") {
+    return Number(booking.id_utente) === Number(currentUser.id_utente);
+  }
+
+  return false;
 }
 
 export const today = new Date();

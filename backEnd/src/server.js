@@ -233,44 +233,55 @@ app.put("/modPrenotazione/:id", async (req, res) => {
 });
 
 app.delete("/cancPrenotazione/:id", async (req, res) => {
-  const idPren = req.params.id;
-  const idUtente = req.body.id_utente;
+  try {
+    const idPren = req.params.id;
+    const idUtente = req.body.id_utente;
 
-  const ruoloRes = await getRuoloUtente(idUtente);
+    // 🔍 DEBUG
+    console.log("ID PRENOTAZIONE:", idPren);
+    console.log("ID UTENTE:", idUtente);
 
-  if (!ruoloRes || ruoloRes.length === 0) {
-    return res.status(403).json({ messaggio: "Utente non valido" });
-  }
+    const ruoloRes = await getRuoloUtente(idUtente);
 
-  const ruolo = ruoloRes[0].ruolo;
+    console.log("RUOLO:", ruoloRes);
 
-  if (ruolo === "studente") {
+    if (!ruoloRes || ruoloRes.length === 0) {
+      return res.status(403).json({ messaggio: "Utente non valido" });
+    }
+
+    const ruolo = ruoloRes[0].ruolo;
+
+    // ADMIN → può cancellare tutto
+    if (ruolo === "admin") {
+      const risultato = await cancPrenotazione(idPren);
+      return res.status(200).json({ messaggio: "Prenotazione eliminata" });
+    }
+
+    // DOCENTE / ATA → solo le proprie
+    if (ruolo === "docente" || ruolo === "ata") {
+      const pren = await getPrenotazione(idPren);
+
+      console.log("PRENOTAZIONE TROVATA:", pren);
+
+      if (!pren || pren.length === 0) {
+        return res.status(404).json({ messaggio: "Prenotazione non trovata" });
+      }
+
+      if (Number(pren[0].id_utente) !== Number(idUtente)) {
+        return res.status(403).json({ messaggio: "Non puoi eliminare questa prenotazione" });
+      }
+
+      const risultato = await cancPrenotazione(idPren);
+      return res.status(200).json({ messaggio: "Prenotazione eliminata" });
+    }
+
+    // STUDENTE → non può eliminare
     return res.status(403).json({ messaggio: "Permesso negato" });
+
+  } catch (error) {
+    console.log("ERRORE DELETE:", error);
+    res.status(400).json({ messaggio: "Errore eliminazione prenotazione" });
   }
-
-  if (ruolo === "docente" || ruolo === "ata") {
-    const pren = await getPrenotazione(idPren);
-
-    if (!pren || pren.length === 0) {
-      return res.status(404).json({ messaggio: "Prenotazione non trovata" });
-    }
-
-    if (pren[0].id_utente !== Number(idUtente)) {
-      return res.status(403).json({ messaggio: "Non puoi eliminare questa prenotazione" });
-    }
-  }
-
-  const risultato = await cancPrenotazione(idPren);
-
-  if (risultato === null) {
-    return res.status(500).json({ messaggio: "Errore database" });
-  }
-
-  if (risultato.affectedRows === 0) {
-    return res.status(404).json({ messaggio: "Prenotazione non trovata" });
-  }
-
-  return res.status(200).json({ messaggio: "Prenotazione eliminata correttamente" });
 });
 
 app.listen(process.env.PORT || 3000, () => {

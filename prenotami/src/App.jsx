@@ -11,13 +11,19 @@ import {
 const GOOGLE_CLIENT_ID = '452696044138-qjucuslqfrnbov7ut4v9fa0tkovpvems.apps.googleusercontent.com';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+  const savedUser = localStorage.getItem("utente");
+  return savedUser ? JSON.parse(savedUser) : null;
+});
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       {!currentUser
         ? <LoginScreen onLogin={setCurrentUser} />
-        : <AppShell currentUser={currentUser} onLogout={() => setCurrentUser(null)} />
+        : <AppShell currentUser={currentUser}onLogout={() => {
+                  localStorage.removeItem("utente");
+                  setCurrentUser(null);
+                }} />
       }
     </GoogleOAuthProvider>
   );
@@ -47,6 +53,7 @@ function LoginScreen({ onLogin }) {
       return;
     }
 
+    localStorage.setItem("utente", JSON.stringify(data.utente));
     onLogin(data.utente);
   } catch {
     setError('Errore durante il login. Riprova.');
@@ -89,6 +96,24 @@ function LoginScreen({ onLogin }) {
 
 function AppShell({ currentUser, onLogout }) {
   const [page, setPage] = useState('dashboard');
+  const [aule, setAule] = useState([]);
+
+  useEffect(() => {
+  const caricaAule = async () => {
+    try {
+      const response = await fetch("http://localhost:3000/aule");
+      const data = await response.json();
+
+      if (response.ok && Array.isArray(data)) {
+        setAule(data);
+      }
+    } catch (error) {
+      console.log("Errore caricamento aule:", error);
+    }
+  };
+
+  caricaAule();
+}, []);
 
  const [bookings, setBookings] = useState([]);
  useEffect(() => {
@@ -165,12 +190,13 @@ const addBooking = useCallback((b) => {
       <div className="main">
         {page === 'dashboard' && (
           <DashboardPage
-            currentUser={currentUser}
-            bookings={bookings}
-            onAdd={addBooking}
-            onUpdate={updateBooking}
-            onDelete={removeBooking}
-          />
+              currentUser={currentUser}
+              bookings={bookings}
+              aule={aule}
+              onAdd={addBooking}
+              onUpdate={updateBooking}
+              onDelete={removeBooking}
+            />
         )}
         {page === 'profilo' && (
           <ProfilePage
@@ -183,7 +209,7 @@ const addBooking = useCallback((b) => {
   );
 }
 
-function DashboardPage({ currentUser, bookings, onAdd, onUpdate, onDelete }) {
+function DashboardPage({ currentUser, bookings, aule, onAdd, onUpdate, onDelete }) {
   const [search,       setSearch]       = useState('');
   const [filterAula,   setFilterAula]   = useState('');
   const [filterClasse, setFilterClasse] = useState('');
@@ -224,28 +250,118 @@ function DashboardPage({ currentUser, bookings, onAdd, onUpdate, onDelete }) {
     setTimeout(() => setGlobalAlert(null), 4000);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const b = bookings.find(x => x.id === id);
-    if (!b || !canDelete(b, currentUser)) {
-      showGlobal('Non hai i permessi per eliminare questa prenotazione. (403 Forbidden)', 'error');
+
+    if (!b) {
+      showGlobal("Prenotazione non trovata.", "error");
       return;
     }
-    if (!window.confirm('Sei sicuro di voler eliminare questa prenotazione?')) return;
-    onDelete(id);
-    showGlobal('Prenotazione eliminata.', 'success');
+
+    if (!window.confirm("Sei sicuro di voler eliminare questa prenotazione?")) return;
+
+    try {
+      const response = await fetch(`http://localhost:3000/cancPrenotazione/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          id_utente: currentUser.id_utente
+        })
+      });
+
+      const res = await response.json();
+
+      if (!response.ok) {
+        showGlobal(res.messaggio || "Errore eliminazione", "error");
+        return;
+      }
+
+      onDelete(id);
+      showGlobal("Prenotazione eliminata.", "success");
+    } catch (error) {
+      console.log(error);
+      showGlobal("Errore server", "error");
+    }
   };
 
-  const handleSave = ({ isNew, id, data }) => {
+  const handleSave = async ({ isNew, id, data }) => {
+  try {
     if (isNew) {
-      onAdd({ ...data, id_utente: currentUser.id, stato: 'attiva' });
-      showGlobal('Prenotazione creata con successo.', 'success');
+      const response = await fetch("http://localhost:3000/insPrenotazione", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          data: data.data,
+          ora_inizio: data.ora_inizio,
+          ora_fine: data.ora_fine,
+          id_utente: currentUser.id_utente,
+          id_aula: data.id_aula,
+          motivazione: data.motivo
+        })
+      });
+
+      const res = await response.json();
+
+      if (!response.ok) {
+        showGlobal(res.messaggio || res.errore || "Errore inserimento", "error");
+        return;
+      }
+
+      const nuovaPrenotazione = {
+        id: res.risultato.insertId,
+        data: data.data,
+        ora_inizio: data.ora_inizio,
+        ora_fine: data.ora_fine,
+        id_utente: currentUser.id_utente,
+        id_aula: data.id_aula,
+        motivo: data.motivo,
+        classi: []
+      };
+
+      onAdd(nuovaPrenotazione);
+      showGlobal("Prenotazione creata con successo.", "success");
     } else {
-      onUpdate(id, data);
-      showGlobal('Prenotazione modificata con successo.', 'success');
+      const response = await fetch(`http://localhost:3000/modPrenotazione/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          data: data.data,
+          ora_inizio: data.ora_inizio,
+          ora_fine: data.ora_fine,
+          id_utente: currentUser.id_utente,
+          id_aula: data.id_aula,
+          motivazione: data.motivo
+        })
+      });
+
+      const res = await response.json();
+
+      if (!response.ok) {
+        showGlobal(res.messaggio || res.errore || "Errore modifica", "error");
+        return;
+      }
+
+      onUpdate(id, {
+        ...data,
+        id_utente: currentUser.id_utente
+      });
+
+      showGlobal("Prenotazione modificata con successo.", "success");
     }
+
     setModalOpen(false);
     setEditingId(null);
-  };
+  } catch (error) {
+    console.log(error);
+    showGlobal("Errore server", "error");
+  }
+};
 
   const openNew  = () => { setEditingId(null); setModalOpen(true); };
   const openEdit = id  => { setEditingId(id);  setModalOpen(true); };
@@ -279,7 +395,11 @@ function DashboardPage({ currentUser, bookings, onAdd, onUpdate, onDelete }) {
         </div>
         <select className="filter-select" value={filterAula} onChange={e => setFilterAula(e.target.value)}>
           <option value="">Tutte le aule</option>
-          {MOCK_AULE.map(a => <option key={a.id} value={a.id}>{a.descrizione}</option>)}
+          {aule.map(a => (
+            <option key={a.id_aula} value={a.id_aula}>
+              {a.descrizione}
+            </option>
+        ))}
         </select>
         <select className="filter-select" value={filterClasse} onChange={e => setFilterClasse(e.target.value)}>
           <option value="">Tutte le classi</option>
@@ -319,6 +439,7 @@ function DashboardPage({ currentUser, bookings, onAdd, onUpdate, onDelete }) {
       {modalOpen && (
         <BookingModal
           bookings={bookings}
+          aule={aule}
           editing={editingBooking}
           currentUser={currentUser}
           onSave={handleSave}
@@ -332,9 +453,9 @@ function DashboardPage({ currentUser, bookings, onAdd, onUpdate, onDelete }) {
 function ProfilePage({ currentUser, bookings }) {
   const todayStr   = fmtDate(new Date());
   const myBookings = useMemo(() =>
-    bookings.filter(b => b.id_utente === currentUser.id),
-    [bookings, currentUser.id]
-  );
+  bookings.filter(b => Number(b.id_utente) === Number(currentUser.id_utente)),
+  [bookings, currentUser.id_utente]
+);
   const upcoming = useMemo(() =>
     myBookings
       .filter(b => b.data >= todayStr)
@@ -442,7 +563,7 @@ function BookingCard({ booking: b, currentUser, onEdit, onDelete }) {
   );
 }
 
-function BookingModal({ bookings, editing, currentUser, onSave, onClose }) {
+function BookingModal({ bookings, aule, editing, currentUser, onSave, onClose }) {
   const todayStr = fmtDate(new Date());
   const isEdit   = !!editing;
 
@@ -516,7 +637,11 @@ function BookingModal({ bookings, editing, currentUser, onSave, onClose }) {
           <label className="form-label">Aula *</label>
           <select className="form-select" value={idAula} onChange={e => setIdAula(e.target.value)}>
             <option value="">Seleziona un'aula</option>
-            {MOCK_AULE.map(a => <option key={a.id} value={a.id}>{a.descrizione}</option>)}
+            {aule.map(a => (
+              <option key={a.id_aula} value={a.id_aula}>
+                {a.descrizione}
+              </option>
+            ))}
           </select>
         </div>
 
