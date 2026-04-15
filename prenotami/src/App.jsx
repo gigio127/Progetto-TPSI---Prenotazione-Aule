@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { useState, useCallback, useMemo, useEffect } from 'react'
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google'
 import { jwtDecode } from 'jwt-decode'
 import {
@@ -26,21 +26,32 @@ export default function App() {
 function LoginScreen({ onLogin }) {
   const [error, setError] = useState('');
 
-  const handleSuccess = (credentialResponse) => {
-    setError('');
-    try {
-      const decoded = jwtDecode(credentialResponse.credential);
-      const email   = decoded.email;
-      const user    = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (!user) {
-        setError(`Accesso negato: l'account ${email} non è registrato nel sistema. (401 Unauthorized)`);
-        return;
-      }
-      onLogin(user);
-    } catch {
-      setError('Errore durante il login. Riprova.');
+  const handleSuccess = async (credentialResponse) => {
+  setError('');
+  try {
+    const decoded = jwtDecode(credentialResponse.credential);
+    const email = decoded.email;
+
+    const response = await fetch("http://localhost:3000/auth/google", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      setError(data.messaggio || "Accesso negato");
+      return;
     }
-  };
+
+    onLogin(data.utente);
+  } catch {
+    setError('Errore durante il login. Riprova.');
+  }
+};
 
   const handleError = () => {
     setError('Login con Google fallito. Riprova.');
@@ -79,8 +90,34 @@ function LoginScreen({ onLogin }) {
 function AppShell({ currentUser, onLogout }) {
   const [page, setPage] = useState('dashboard');
 
-  const [bookings, setBookings] = useState(INITIAL_BOOKINGS);
-  const [nextId,   setNextId]   = useState(6);
+ const [bookings, setBookings] = useState([]);
+ useEffect(() => {
+  const caricaPrenotazioni = async () => {
+    try {
+      const response = await fetch("http://localhost:3000/prenotazioni");
+      const data = await response.json();
+
+      if (response.ok && Array.isArray(data)) {
+        const prenotazioniFormattate = data.map(p => ({
+          id: p.id_prenotazione,
+          data: p.data,
+          ora_inizio: p.ora_inizio,
+          ora_fine: p.ora_fine,
+          id_utente: p.id_utente,
+          id_aula: p.id_aula,
+          motivo: p.motivazione || "",
+          classi: []
+        }));
+
+        setBookings(prenotazioniFormattate);
+      }
+    } catch (error) {
+      console.log("Errore caricamento prenotazioni:", error);
+    }
+  };
+
+  caricaPrenotazioni();
+}, []);
 
   const addBooking = useCallback(b => {
     setNextId(n => {
